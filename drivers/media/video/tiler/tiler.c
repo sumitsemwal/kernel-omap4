@@ -125,6 +125,9 @@ static struct tmm *tmm[TILER_FORMATS];
 static u32 *dmac_va;
 static dma_addr_t dmac_pa;
 
+static u32 *dummy_mem;
+static u32 dummy_pa;
+
 #define TCM(fmt)        tcm[(fmt) - TILFMT_8BIT]
 #define TCM_SS(ssptr)   TCM(TILER_GET_ACC_MODE(ssptr))
 #define TCM_SET(fmt, i) tcm[(fmt) - TILFMT_8BIT] = i
@@ -646,6 +649,7 @@ static void clear_pat(struct tmm *tmm, struct tcm_area *area)
 {
 	struct pat_area p_area = {0};
 	struct tcm_area slice, area_s;
+	int i;
 
 	tcm_for_each_slice(slice, *area, area_s) {
 		p_area.x0 = slice.p0.x;
@@ -653,7 +657,11 @@ static void clear_pat(struct tmm *tmm, struct tcm_area *area)
 		p_area.x1 = slice.p1.x;
 		p_area.y1 = slice.p1.y;
 
-		tmm_clear(tmm, p_area);
+		for (i = 0; i<tcm_sizeof(slice); i++) {
+			dmac_va[i] = dummy_pa;
+		}
+
+		tmm_map(tmm, p_area, dmac_pa);
 	}
 }
 
@@ -1722,6 +1730,8 @@ static void __exit tiler_exit(void)
 	kfree(tiler_device);
 	device_destroy(tilerdev_class, MKDEV(tiler_major, tiler_minor));
 	class_destroy(tilerdev_class);
+
+	free_pages_exact(dummy_mem, PAGE_SIZE);
 }
 
 static s32 tiler_open(struct inode *ip, struct file *filp)
@@ -1764,6 +1774,7 @@ static s32 __init tiler_init(void)
 	struct tcm_pt div_pt;
 	struct tcm *sita = NULL;
 	struct tmm *tmm_pat = NULL;
+	struct tcm_area area = {0};
 
 	if (!cpu_is_omap44xx())
 		return 0;
@@ -1837,6 +1848,20 @@ static s32 __init tiler_init(void)
 	INIT_LIST_HEAD(&orphan_onedim);
 	BLOCKING_INIT_NOTIFIER_HEAD(&tiler_device->notifier);
 	id = 0xda7a000;
+
+	/* Dummy page for filling unused entries in dmm (dmac_va):
+	 */
+	dummy_mem = alloc_pages_exact(PAGE_SIZE, GFP_KERNEL);
+	dummy_pa = virt_to_phys(dummy_mem);
+
+	/* clear the entire dmm space:
+	 */
+	area.tcm = sita;
+	area.p0.x = 0;
+	area.p0.y = 0;
+	area.p1.x = TILER_WIDTH - 1;
+	area.p1.y = TILER_HEIGHT - 1;
+	clear_pat(tmm_pat, &area);
 
 error:
 	/* TODO: error handling for device registration */
