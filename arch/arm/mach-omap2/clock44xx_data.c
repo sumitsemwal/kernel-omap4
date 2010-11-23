@@ -2901,6 +2901,7 @@ static struct clk auxclk2_ck = {
 	.enable_reg	= OMAP4_SCRM_AUXCLK2,
 	.enable_bit	= OMAP4_ENABLE_SHIFT,
 };
+
 static struct clk auxclk3_ck = {
 	.name		= "auxclk3_ck",
 	.parent		= &sys_clkin_ck,
@@ -2913,6 +2914,7 @@ static struct clk auxclk3_ck = {
 	.enable_reg	= OMAP4_SCRM_AUXCLK3,
 	.enable_bit	= OMAP4_ENABLE_SHIFT,
 };
+
 
 static struct clk auxclk4_ck = {
 	.name		= "auxclk4_ck",
@@ -3275,13 +3277,13 @@ static struct omap_clk omap44xx_clks[] = {
 	CLK(NULL,	"auxclk0_ck",				&auxclk0_ck,	CK_443X),
 	CLK(NULL,	"auxclk1_ck",				&auxclk1_ck,	CK_443X),
 	CLK(NULL,	"auxclk2_ck",				&auxclk2_ck,	CK_443X),
-	CLK(NULL,	"auxclk3_ck",				&auxclk3_ck,	CK_443X),
+//	CLK(NULL,	"auxclk3_ck",				&auxclk3_ck,	CK_443X),
 	CLK(NULL,	"auxclk4_ck",				&auxclk4_ck,	CK_443X),
 	CLK(NULL,	"auxclk5_ck",				&auxclk5_ck,	CK_443X),
 	CLK(NULL,	"auxclkreq0_ck",			&auxclkreq0_ck,	CK_443X),
 	CLK(NULL,	"auxclkreq1_ck",			&auxclkreq1_ck,	CK_443X),
 	CLK(NULL,	"auxclkreq2_ck",			&auxclkreq2_ck,	CK_443X),
-	CLK(NULL,	"auxclkreq3_ck",			&auxclkreq3_ck,	CK_443X),
+//	CLK(NULL,	"auxclkreq3_ck",			&auxclkreq3_ck,	CK_443X),
 	CLK(NULL,	"auxclkreq4_ck",			&auxclkreq4_ck,	CK_443X),
 	CLK(NULL,	"auxclkreq5_ck",			&auxclkreq5_ck,	CK_443X),
 	CLK("omap_timer.1",	"32k_ck",	&sys_32k_ck,	CK_443X),
