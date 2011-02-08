@@ -338,13 +338,13 @@ static ssize_t display_edid_show(struct device *dev,
 {
 	struct omap_dss_device *dssdev = to_dss_device(dev);
 
-
-		if (!dssdev->driver->get_edid)
+	if (!dssdev->driver->dump_edid)
 		return -ENOENT;
-	dssdev->driver->get_edid(dssdev);
-	return snprintf(buf, PAGE_SIZE, "EDID-Information");
 
+	dssdev->driver->dump_edid(dssdev);
+	return snprintf(buf, PAGE_SIZE, "EDID-Information");
 }
+
 static ssize_t display_custom_edid_timing_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t size)
 {

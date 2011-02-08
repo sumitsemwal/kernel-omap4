@@ -60,9 +60,10 @@ static void hdmi_get_timings(struct omap_dss_device *dssdev,
 			struct omap_video_timings *timings);
 static void hdmi_set_timings(struct omap_dss_device *dssdev,
 			struct omap_video_timings *timings);
+static int hdmi_get_edid(struct omap_dss_device *dssdev, u8 *buf, int len);
 static void hdmi_set_custom_edid_timing_code(struct omap_dss_device *dssdev,
 							int code , int mode);
-static void hdmi_get_edid(struct omap_dss_device *dssdev);
+static void hdmi_get_custom_edid_timing_code(struct omap_dss_device *dssdev);
 static int hdmi_check_timings(struct omap_dss_device *dssdev,
 			struct omap_video_timings *timings);
 static int hdmi_read_edid(struct omap_video_timings *);
@@ -570,7 +571,7 @@ static int hdmi_ioctl(struct inode *inode, struct file *file,
 		hdmi_disable_video(dssdev);
 		break;
 	case HDMI_READ_EDID:
-		hdmi_get_edid(dssdev);
+		hdmi_get_custom_edid_timing_code(dssdev);
 		break;
 	default:
 		r = -EINVAL;
@@ -920,6 +921,7 @@ static struct omap_dss_driver hdmi_driver = {
 	.set_timings	= hdmi_set_timings,
 	.check_timings	= hdmi_check_timings,
 	.get_edid	= hdmi_get_edid,
+	.dump_edid	= hdmi_get_custom_edid_timing_code,
 	.set_custom_edid_timing_code	= hdmi_set_custom_edid_timing_code,
 	.hpd_enable	=	hdmi_enable_hpd,
 	.reset		= hdmi_reset,
@@ -1847,6 +1849,16 @@ static void hdmi_set_timings(struct omap_dss_device *dssdev,
 		hdmi_reset(dssdev, OMAP_DSS_RESET_BOTH);
 }
 
+static int hdmi_get_edid(struct omap_dss_device *dssdev, u8 *buf, int len)
+{
+	if (!edid_set)
+		hdmi_read_edid(NULL);
+	if (!edid_set)
+		return -EINVAL;
+	memcpy(buf, edid, min(len, HDMI_EDID_MAX_LENGTH));
+	return 0;
+}
+
 static void hdmi_set_custom_edid_timing_code(struct omap_dss_device *dssdev,
 							int code, int mode)
 {
@@ -1901,7 +1913,7 @@ static struct hdmi_cm hdmi_get_code(struct omap_video_timings *timing)
 	return cm;
 }
 
-static void hdmi_get_edid(struct omap_dss_device *dssdev)
+static void hdmi_get_custom_edid_timing_code(struct omap_dss_device *dssdev)
 {
 	u8 i = 0, mark = 0, *e;
 	int offset, addr;
@@ -2198,10 +2210,12 @@ static int hdmi_read_edid(struct omap_video_timings *dp)
 	else
 		code = get_timings_index();
 
-	*dp = all_timings_direct[code];
+	if (dp) {
+		*dp = all_timings_direct[code];
+		print_omap_video_timings(dp);
+	}
 
 	DSSDBG(KERN_INFO"hdmi read EDID:\n");
-	print_omap_video_timings(dp);
 
 	return r;
 }
