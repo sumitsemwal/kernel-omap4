@@ -304,6 +304,9 @@ struct hdmi_cm {
 	int code;
 	int mode;
 };
+
+static struct hdmi_cm hdmi_get_code(struct omap_video_timings *timing);
+
 struct omap_video_timings edid_timings;
 
 static void update_cfg(struct hdmi_config *cfg,
@@ -1843,13 +1846,68 @@ static void hdmi_get_timings(struct omap_dss_device *dssdev,
 static void hdmi_set_timings(struct omap_dss_device *dssdev,
 			struct omap_video_timings *timings)
 {
+	struct hdmi_cm cm;
+
 	DSSDBG("hdmi_set_timings\n");
 
+	/* check if proposed timings are something in our table of supported
+	 * timings:
+	 */
+	cm = hdmi_get_code(timings);
+
+	if (cm.code == -1)
+		return;
+
+	hdmi.code = cm.code;
+	hdmi.mode = cm.mode;
 	dssdev->panel.timings = *timings;
 
 	if (dssdev->state == OMAP_DSS_DISPLAY_ACTIVE)
 		/* turn the phy off and on to get new timings to use */
 		hdmi_reset(dssdev, OMAP_DSS_RESET_BOTH);
+
+#if 0
+	/* not sure if above is sufficent.. if it is (once enough other patches are
+	 * applied) to change resolution, then remove this part.. otherwise, something
+	 * like the below logic is what is working on generic linux kernel:
+	 */
+	if (dssdev->state == OMAP_DSS_DISPLAY_ACTIVE) {
+		/* turn the hdmi off and on to get new timings to use */
+		hdmi_disable_display(dssdev);
+		dssdev->panel.timings = *timings;
+		hdmi.code = cm.code;
+		hdmi.mode = cm.mode;
+		custom_set = true;
+		hdmi_enable_display(dssdev);
+		custom_set = false;
+	} else {
+		/* possibly we can ignore if display is not currently detected...
+		 * currently we'd anyways override these settings with the first
+		 * timings extracted from EDID, so this is kinda pointless:
+		 */
+		dssdev->panel.timings = *timings;
+		hdmi.code = cm.code;
+		hdmi.mode = cm.mode;
+	}
+#endif
+}
+
+static int hdmi_check_timings(struct omap_dss_device *dssdev,
+		struct omap_video_timings *timings)
+{
+	struct hdmi_cm cm;
+
+	DSSDBG("hdmi_check_timings\n");
+
+	/* check if proposed timings are something in our table of supported
+	 * timings:
+	 */
+	cm = hdmi_get_code(timings);
+
+	if (cm.code == -1)
+		return -EINVAL;
+
+	return 0;
 }
 
 static int hdmi_get_edid(struct omap_dss_device *dssdev, u8 *buf, int len)
@@ -2046,17 +2104,6 @@ hdmi_get_err2:
 	kfree(aud_format);
 hdmi_get_err1:
 	kfree(img_format);
-}
-
-static int hdmi_check_timings(struct omap_dss_device *dssdev,
-			struct omap_video_timings *timings)
-{
-	DSSDBG("hdmi_check_timings\n");
-
-	if (memcmp(&dssdev->panel.timings, timings, sizeof(*timings)) == 0)
-		return 0;
-
-	return -EINVAL;
 }
 
 static int hdmi_set_s3d_disp_type(struct omap_dss_device *dssdev,
