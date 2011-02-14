@@ -1,4 +1,7 @@
 #
+
+DATE                    := $(shell date +%Y-%m-%d)
+
 ccflags-y = -DLINUX -D__linux__ -Idrivers/gpu/pvr \
 	-DANDROID \
 	-DPVR_BUILD_DIR="\"omap_sgx_android\"" \
@@ -16,7 +19,7 @@ ccflags-y = -DLINUX -D__linux__ -Idrivers/gpu/pvr \
 	-DSUPPORT_MEMINFO_IDS \
 	-DDISPLAY_CONTROLLER=omaplfb \
 	-DSYS_SGX_ACTIVE_POWER_LATENCY_MS=1 \
-	-DPVR_BUILD_DATE="" \
+	-DPVR_BUILD_DATE="\"$(DATE)\"" \
 	-DSUPPORT_SGX \
 	-DCLIENT_DRIVER_DEFAULT_WAIT_RETRIES=50 \
 	-DPVR_LINUX_TIMERS_USING_WORKQUEUES \
@@ -31,6 +34,8 @@ ccflags-y = -DLINUX -D__linux__ -Idrivers/gpu/pvr \
 	-DSUPPORT_DBGDRV_EVENT_OBJECTS \
 	-DPVR_NO_OMAP_TIMER \
 	-DSUPPORT_DYNAMIC_GTF_TIMING \
+	-DSUPPORT_DRI_DRM \
+	-DPVR_SECURE_DRM_AUTH_EXPORT \
 	-DSUPPORT_SGX_LOW_LATENCY_SCHEDULING \
 	-DPVRSRV_MODNAME="\"pvrsrvkm"\"
 
@@ -99,6 +104,7 @@ pvr_common-y := \
 	event.o \
 	osperproc.o \
 	buffer_manager.o \
+	pvr_drm.o \
 	devicemem.o \
 	deviceclass.o \
 	handle.o \

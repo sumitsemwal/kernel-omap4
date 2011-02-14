@@ -60,7 +60,7 @@
 #define SGX_PARENT_CLOCK "core_ck"
 #endif
 
-#if defined(LDM_PLATFORM) && !defined(SUPPORT_DRI_DRM)
+#if defined(LDM_PLATFORM)
 extern struct platform_device *gpsPVRLDMDev;
 #endif
 
@@ -175,7 +175,7 @@ PVRSRV_ERROR EnableSGXClocks(SYS_DATA *psSysData)
 
 	PVR_DPF((PVR_DBG_MESSAGE, "EnableSGXClocks: Enabling SGX Clocks"));
 
-#if defined(LDM_PLATFORM) && !defined(SUPPORT_DRI_DRM)
+#if defined(LDM_PLATFORM)
 	pm_runtime_get_sync(&gpsPVRLDMDev->dev);
 #endif
 
@@ -254,7 +254,7 @@ IMG_VOID DisableSGXClocks(SYS_DATA *psSysData)
 
 	PVR_DPF((PVR_DBG_MESSAGE, "DisableSGXClocks: Disabling SGX Clocks"));
 
-#if defined(LDM_PLATFORM) && !defined(SUPPORT_DRI_DRM)
+#if defined(LDM_PLATFORM)
 	pm_runtime_put_sync(&gpsPVRLDMDev->dev);
 #endif
 
@@ -522,7 +522,7 @@ IMG_VOID DisableSystemClocks(SYS_DATA *psSysData)
 
 PVRSRV_ERROR SysPMRuntimeRegister(void)
 {
-#if defined(LDM_PLATFORM) && !defined(SUPPORT_DRI_DRM)
+#if defined(LDM_PLATFORM)
 	pm_runtime_enable(&gpsPVRLDMDev->dev);
 #endif
 	return PVRSRV_OK;
@@ -530,7 +530,7 @@ PVRSRV_ERROR SysPMRuntimeRegister(void)
 
 PVRSRV_ERROR SysPMRuntimeUnregister(void)
 {
-#if defined(LDM_PLATFORM) && !defined(SUPPORT_DRI_DRM)
+#if defined(LDM_PLATFORM)
 	pm_runtime_disable(&gpsPVRLDMDev->dev);
 #endif
 	return PVRSRV_OK;
