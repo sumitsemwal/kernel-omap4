@@ -127,7 +127,7 @@ PVRSRVDrmLoad(struct drm_device *dev, unsigned long flags)
 	}
 #endif
 	
-#if 0//defined(DISPLAY_CONTROLLER)
+#if defined(DISPLAY_CONTROLLER)
 	iRes = PVR_DRM_MAKENAME(DISPLAY_CONTROLLER, _Init)(dev);
 	if (iRes != 0)
 	{
@@ -386,7 +386,7 @@ static void __exit PVRSRVDrmExit(void)
 	PVRCore_Cleanup();
 }
 
-module_init(PVRSRVDrmInit);
+late_initcall(PVRSRVDrmInit);
 module_exit(PVRSRVDrmExit);
 #endif	
 #endif	

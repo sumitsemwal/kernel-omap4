@@ -35,6 +35,7 @@ ccflags-y = -DLINUX -D__linux__ -Idrivers/gpu/pvr \
 	-DPVR_NO_OMAP_TIMER \
 	-DSUPPORT_DYNAMIC_GTF_TIMING \
 	-DSUPPORT_DRI_DRM \
+	-DPVR_DISPLAY_CONTROLLER_DRM_IOCTL \
 	-DPVR_SECURE_DRM_AUTH_EXPORT \
 	-DSUPPORT_SGX_LOW_LATENCY_SCHEDULING \
 	-DPVRSRV_MODNAME="\"pvrsrvkm"\"
@@ -149,7 +150,6 @@ sgx_displayclass-y := \
 
 omaplfb-y := \
 	omaplfb/omaplfb_displayclass.o \
-	omaplfb/omaplfb-sysfs.o \
 	omaplfb/omaplfb_linux.o
 
 dbgdrv-$(CONFIG_SGX_PDUMP) := \
