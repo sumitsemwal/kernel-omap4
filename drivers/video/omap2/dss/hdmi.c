@@ -66,8 +66,7 @@ static void hdmi_set_custom_edid_timing_code(struct omap_dss_device *dssdev,
 static void hdmi_get_custom_edid_timing_code(struct omap_dss_device *dssdev);
 static int hdmi_check_timings(struct omap_dss_device *dssdev,
 			struct omap_video_timings *timings);
-static int hdmi_read_edid(struct omap_video_timings *);
-static int get_edid_timing_data(struct HDMI_EDID *edid);
+static int hdmi_read_edid(void);
 static irqreturn_t hdmi_irq_handler(int irq, void *arg);
 static int hdmi_enable_hpd(struct omap_dss_device *dssdev);
 static int hdmi_set_power(struct omap_dss_device *dssdev,
@@ -83,6 +82,7 @@ static bool hdmi_get_s3d_enabled(struct omap_dss_device *dssdev);
 static int hdmi_enable_s3d(struct omap_dss_device *dssdev, bool enable);
 static int hdmi_set_s3d_disp_type(struct omap_dss_device *dssdev,
 		struct s3d_disp_info *info);
+static int hdmi_min_enable(void);
 static void hdmi_notify_queue(struct work_struct *work);
 static int hdmi_reset(struct omap_dss_device *dssdev,
 					enum omap_dss_reset_phase phase);
@@ -298,7 +298,11 @@ struct hdmi {
 	struct hdmi_config cfg;
 	struct omap_display_platform_data *pdata;
 	struct platform_device *pdev;
-} hdmi;
+} hdmi = {
+		.code = 4, /*setting default value of 640 480 VGA*/
+		.mode = 0,
+
+};
 
 struct hdmi_cm {
 	int code;
@@ -880,7 +884,12 @@ static bool hdmi_panel_is_enabled(struct omap_dss_device *dssdev)
 
 static bool hdmi_panel_is_detected(struct omap_dss_device *dssdev)
 {
-	return hdmi_rxdet();
+	/* note: this will cause an abort if things are suspended and the
+	 * right clocks aren't on... display team should fix this and
+	 * add appropriate calls to turn on whatever needs to be turned
+	 * on..
+	 */
+	return hdmi_is_connected();
 }
 
 static int hdmi_panel_enable(struct omap_dss_device *dssdev)
@@ -1025,7 +1034,6 @@ static int hdmi_power_on(struct omap_dss_device *dssdev)
 {
 	int r = 0;
 	int code = 0;
-	int dirty;
 	struct omap_video_timings *p;
 	struct hdmi_pll_info pll_data;
 	struct deep_color *vsdb_format = NULL;
@@ -1039,27 +1047,21 @@ static int hdmi_power_on(struct omap_dss_device *dssdev)
 
 	p = &dssdev->panel.timings;
 
-	if (!custom_set) {
-		code = get_timings_index();
-
+	if (!edid_set) {
 		DSSDBG("No edid set thus will be calling hdmi_read_edid");
-		r = hdmi_read_edid(p);
+		r = hdmi_read_edid();
 		if (r) {
 			r = -EIO;
 			goto err;
 		}
+	}
 
-		vsdb_format = kzalloc(sizeof(*vsdb_format), GFP_KERNEL);
-		hdmi_deep_color_support_info(edid, vsdb_format);
-		DSSINFO("deep_color_bit30=%d bit36=%d max_tmds_freq=%d\n",
+	vsdb_format = kzalloc(sizeof(*vsdb_format), GFP_KERNEL);
+	hdmi_deep_color_support_info(edid, vsdb_format);
+	DSSINFO("deep_color_bit30=%d bit36=%d max_tmds_freq=%d\n",
 			vsdb_format->bit_30, vsdb_format->bit_36,
 			vsdb_format->max_tmds_freq);
-		max_tmds = vsdb_format->max_tmds_freq * 500;
-
-		dirty = get_timings_index() != code;
-	} else {
-		dirty = true;
-	}
+	max_tmds = vsdb_format->max_tmds_freq * 500;
 
 	update_cfg(&hdmi.cfg, p);
 
@@ -1125,9 +1127,6 @@ static int hdmi_power_on(struct omap_dss_device *dssdev)
 	HDMI_W1_StopVideoFrame(HDMI_WP);
 
 	dispc_enable_digit_out(0);
-
-	if (dirty)
-		omap_dss_notify(dssdev, OMAP_DSS_SIZE_CHANGE);
 
 	/* config the PLL and PHY first */
 	r = hdmi_pll_program(&pll_data);
@@ -1313,11 +1312,6 @@ static void cancel_hot_plug_notify_work(void)
 	hot_plug_notify_canceled = false;
 }
 
-static int hdmi_is_connected(void)
-{
-	return hdmi_rxdet();
-}
-
 static void hdmi_work_queue(struct work_struct *ws)
 {
 	struct hdmi_work_struct *work =
@@ -1364,18 +1358,6 @@ static void hdmi_work_queue(struct work_struct *ws)
 			mdelay(100 - time);
 		if (hdmi_connected)
 			goto done;
-
-		/*
-		 * We only clear timings when hpd notification is emminent.
-		 * By contract we guarantee an hpd 1 event after each time we
-		 * clear the timings (if HDMI is plugged in), in case a previous
-		 * hpd 1 event is being processed after the clearing.  In this
-		 * case the listener would read all 0-s, but can simply assume
-		 * HDMI is off as it will get another hpd 1 event if HDMI is
-		 * plugged in (after EDID is successfully read).
-		 */
-		memset(&dssdev->panel.timings, 0,
-						sizeof(dssdev->panel.timings));
 
 		/* turn audio power off */
 		notify = !audio_on; /* notification is sent if audio is on */
@@ -1535,9 +1517,6 @@ static irqreturn_t hdmi_irq_handler(int irq, void *arg)
 static void hdmi_power_off_phy(struct omap_dss_device *dssdev)
 {
 	edid_set = false;
-
-	/* clear timings */
-	memset(&dssdev->panel.timings, 0, sizeof(dssdev->panel.timings));
 
 	HDMI_W1_StopVideoFrame(HDMI_WP);
 
@@ -1749,7 +1728,7 @@ static void hdmi_disable_video(struct omap_dss_device *dssdev)
 
 	/* setting to default only in case of disable and not suspend */
 	edid_set = custom_set = false;
-	hdmi.code = 16;
+	hdmi.code = 4; /*setting default value of 640 480 VGA*/
 	hdmi.mode = 1;
 }
 
@@ -1868,9 +1847,13 @@ static void hdmi_set_timings(struct omap_dss_device *dssdev,
 	hdmi.mode = cm.mode;
 	dssdev->panel.timings = *timings;
 
+	custom_set = true;
+
 	if (dssdev->state == OMAP_DSS_DISPLAY_ACTIVE)
 		/* turn the phy off and on to get new timings to use */
 		hdmi_reset(dssdev, OMAP_DSS_RESET_BOTH);
+
+	custom_set = false;
 
 #if 0
 	/* not sure if above is sufficent.. if it is (once enough other patches are
@@ -1903,8 +1886,6 @@ static int hdmi_check_timings(struct omap_dss_device *dssdev,
 {
 	struct hdmi_cm cm;
 
-	DSSDBG("hdmi_check_timings\n");
-
 	/* check if proposed timings are something in our table of supported
 	 * timings:
 	 */
@@ -1919,7 +1900,7 @@ static int hdmi_check_timings(struct omap_dss_device *dssdev,
 static int hdmi_get_edid(struct omap_dss_device *dssdev, u8 *buf, int len)
 {
 	if (!edid_set)
-		hdmi_read_edid(NULL);
+		hdmi_read_edid();
 	if (!edid_set)
 		return -EINVAL;
 	memcpy(buf, edid, min(len, HDMI_EDID_MAX_LENGTH));
@@ -1950,7 +1931,6 @@ static struct hdmi_cm hdmi_get_code(struct omap_video_timings *timing)
 	int timing_vsync = 0, timing_hsync = 0;
 	struct omap_video_timings temp;
 	struct hdmi_cm cm = {-1};
-	DSSDBG("hdmi_get_code");
 
 	for (i = 0; i < ARRAY_SIZE(all_timings_direct); i++) {
 		temp = all_timings_direct[i];
@@ -2234,46 +2214,28 @@ int hdmi_init_display(struct omap_dss_device *dssdev)
 	return 0;
 }
 
-static int hdmi_read_edid(struct omap_video_timings *dp)
+static int hdmi_read_edid(void)
 {
-	int r = 0, ret = 0, code = 0;
+	int ret = 0;
 
-	memset(edid, 0, HDMI_EDID_MAX_LENGTH);
-	if (!edid_set)
+	if (!edid_set) {
+		DSSDBG("going to read edid\n");
+		memset(edid, 0, HDMI_EDID_MAX_LENGTH);
 		ret = HDMI_CORE_DDC_READEDID(HDMI_CORE_SYS, edid,
-							HDMI_EDID_MAX_LENGTH);
+				HDMI_EDID_MAX_LENGTH);
+	} else {
+		DSSDBG("already read edid\n");
+	}
+
 	if (ret != 0) {
 		printk(KERN_WARNING "HDMI failed to read E-EDID\n");
 	} else {
 		if (!memcmp(edid, header, sizeof(header))) {
-			if (hdmi.s3d_enabled) {
-				/* Update flag to convey if sink supports 3D */
-				hdmi.s3d_enabled = hdmi_s3d_supported(edid);
-			}
-			/* search for timings of default resolution */
-			if (get_edid_timing_data((struct HDMI_EDID *) edid))
-				edid_set = true;
+			edid_set = true;
 		}
 	}
 
-	if (!edid_set) {
-		DSSDBG("fallback to VGA\n");
-		hdmi.code = 4; /*setting default value of 640 480 VGA*/
-		hdmi.mode = 0;
-	}
-	if (hdmi.s3d_enabled && hdmi_s3d.structure == HDMI_S3D_FRAME_PACKING)
-		code = get_s3d_timings_index();
-	else
-		code = get_timings_index();
-
-	if (dp) {
-		*dp = all_timings_direct[code];
-		print_omap_video_timings(dp);
-	}
-
-	DSSDBG(KERN_INFO"hdmi read EDID:\n");
-
-	return r;
+	return ret;
 }
 
 /*
@@ -2286,6 +2248,10 @@ static int hdmi_read_edid(struct omap_video_timings *dp)
  *
  * Returns     : void
  *------------------------------------------------------------------------------
+ */
+#if 0
+/* currently unused.. but leaving it here in case someone wants to add
+ * some auto-config option
  */
 static int get_edid_timing_data(struct HDMI_EDID *edid)
 {
@@ -2348,6 +2314,7 @@ static int get_edid_timing_data(struct HDMI_EDID *edid)
 	edid_timings = all_timings_direct[code];
 	return 1;
 }
+#endif
 
 bool is_hdmi_interlaced(void)
 {

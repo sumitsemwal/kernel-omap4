@@ -1817,52 +1817,9 @@ void HDMI_W1_HPD_handler(int *r)
 
 }
 
-int hdmi_rxdet(void)
+bool hdmi_is_connected(void)
 {
-	int state = 0;
-	int loop = 0, val1, val2, val3, val4;
-	struct hdmi_irq_vector IrqHdmiVectorEnable;
-
-	hdmi_write_reg(HDMI_WP, HDMI_WP_WP_DEBUG_CFG, 4);
-
-	do {
-		val1 = hdmi_read_reg(HDMI_WP, HDMI_WP_WP_DEBUG_DATA);
-		udelay(5);
-		val2 = hdmi_read_reg(HDMI_WP, HDMI_WP_WP_DEBUG_DATA);
-		udelay(5);
-		val3 = hdmi_read_reg(HDMI_WP, HDMI_WP_WP_DEBUG_DATA);
-		udelay(5);
-		val4 = hdmi_read_reg(HDMI_WP, HDMI_WP_WP_DEBUG_DATA);
-	} while ((val1 != val2 || val2 != val3 || val3 != val4)
-		&& (loop < 100));
-
-	hdmi_write_reg(HDMI_WP, HDMI_WP_WP_DEBUG_CFG, 0);
-
-	if (loop == 100)
-		state = -1;
-	else
-		state = (val1 & 1);
-
-	/* Turn on the wakeup capability of the interrupts
-	It is recommended to turn on opposite interrupt wake
-	up capability in connected and disconnected state.
-	This is to avoid race condition in interrupts.
-	*/
-	IrqHdmiVectorEnable.core = 1;
-	if(state){
-		//printk("Connected ...");
-		IrqHdmiVectorEnable.phyDisconnect = 1;
-		IrqHdmiVectorEnable.phyConnect = 0;
-		hdmi_w1_irq_wakeup_enable(&IrqHdmiVectorEnable);
-	}
-	else {
-		//printk("DisConnected ...");
-		IrqHdmiVectorEnable.phyDisconnect = 0;
-		IrqHdmiVectorEnable.phyConnect = 1;
-		hdmi_w1_irq_wakeup_enable(&IrqHdmiVectorEnable);
-	}
-
-	return state;
+	return !!(hdmi_read_reg(HDMI_CORE_SYS, HDMI_CORE_SYS__SYS_STAT) & 2);
 }
 
 /* wrapper functions to be used until L24.5 release */

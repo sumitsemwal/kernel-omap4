@@ -521,7 +521,7 @@ int dss_check_overlay(struct omap_overlay *ovl, struct omap_dss_device *dssdev)
 	info = &ovl->info;
 
 	if (info->paddr == 0) {
-		DSSDBG("check_overlay failed: paddr 0\n");
+		DSSERR("check_overlay failed: paddr 0\n");
 		return -EINVAL;
 	}
 
@@ -554,13 +554,13 @@ int dss_check_overlay(struct omap_overlay *ovl, struct omap_dss_device *dssdev)
 	}
 
 	if ((dw < info->pos_x + outw) && !info->out_wb) {
-		DSSDBG("check_overlay failed 1: %d < %d + %d\n",
+		DSSERR("check_overlay failed 1: %d < %d + %d\n",
 				dw, info->pos_x, outw);
 		return -EINVAL;
 	}
 
 	if ((dh < info->pos_y + outh) && !info->out_wb) {
-		DSSDBG("check_overlay failed 2: %d < %d + %d\n",
+		DSSERR("check_overlay failed 2: %d < %d + %d\n",
 				dh, info->pos_y, outh);
 		return -EINVAL;
 	}
