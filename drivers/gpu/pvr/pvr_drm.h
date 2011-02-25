@@ -37,11 +37,13 @@ int PVRCore_Init(void);
 void PVRCore_Cleanup(void);
 int PVRSRVOpen(struct drm_device *dev, struct drm_file *pFile);
 void PVRSRVRelease(void *pvPrivData);
+#if !defined(SUPPORT_DRI_DRM_EXTERNAL)
 int PVRSRVDriverProbe(struct platform_device *device);
 int PVRSRVDriverRemove(struct platform_device *device);
 int PVRSRVDriverSuspend(struct platform_device *device, pm_message_t state);
 int PVRSRVDriverResume(struct platform_device *device);
 void PVRSRVDriverShutdown(struct platform_device *device);
+#endif
 
 int PVRSRV_BridgeDispatchKM(struct drm_device *dev, void *arg, struct drm_file *pFile);
 

@@ -144,16 +144,17 @@ typedef enum _OMAP_ERROR_
 
 #define FRAMEBUFFER_COUNT		num_registered_fb
 
+#define DEBUG
 #ifdef	DEBUG
-#define	DEBUG_PRINTK(format, ...) printk("DEBUG " DRIVER_PREFIX \
+#define	DEBUG_PRINTK(format, ...) printk(KERN_DEBUG DRIVER_PREFIX \
 	" (%s %i): " format "\n", __func__, __LINE__, ## __VA_ARGS__)
 #else
 #define	DEBUG_PRINTK(format,...)
 #endif
 
-#define	WARNING_PRINTK(format, ...) printk("WARNING " DRIVER_PREFIX \
+#define	WARNING_PRINTK(format, ...) printk(KERN_WARNING DRIVER_PREFIX \
 	" (%s %i): " format "\n", __func__, __LINE__, ## __VA_ARGS__)
-#define	ERROR_PRINTK(format, ...) printk("ERROR " DRIVER_PREFIX \
+#define	ERROR_PRINTK(format, ...) printk(KERN_ERR DRIVER_PREFIX \
 	" (%s %i): " format "\n", __func__, __LINE__, ## __VA_ARGS__)
 
 OMAP_ERROR OMAPLFBInit(void);

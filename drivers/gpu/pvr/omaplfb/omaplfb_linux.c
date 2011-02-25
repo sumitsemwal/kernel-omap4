@@ -30,6 +30,7 @@
 
 #if defined(SUPPORT_DRI_DRM)
 #include <drm/drmP.h>
+#include <linux/omap_gpu.h>
 #else
 #include <linux/module.h>
 #endif
@@ -44,14 +45,6 @@
 #else
 #include <mach/vrfb.h>
 #include <mach/display.h>
-#endif
-
-#ifdef RELEASE
-#include <../drivers/video/omap2/omapfb/omapfb.h>
-#undef DEBUG
-#else
-#undef DEBUG
-#include <../drivers/video/omap2/omapfb/omapfb.h>
 #endif
 
 #if defined(CONFIG_OUTER_CACHE)  /* Kernel config option */
@@ -168,16 +161,44 @@ static void OMAPLFBFlipNoLock(OMAPLFB_SWAPCHAIN *psSwapChain,
 {
 	OMAPLFB_DEVINFO *psDevInfo = (OMAPLFB_DEVINFO *)psSwapChain->pvDevInfo;
 	struct fb_info *framebuffer = psDevInfo->psLINFBInfo;
+	/* note: make a copy of the current var, to modify.. otherwise we
+	 * fool fbdev into thinking that nothing has changed!
+	 */
+	struct fb_var_screeninfo var = framebuffer->var;
+
+	/* TODO:  we really should create a separate fb for each buffer in
+	 * the flip chain.. then flipping could be done either from kernel
+	 * or userspace via crtc->funcs->page_flip().. this will be easier
+	 * when we can more easily allocate framebuffer memory dynamically
+	 * (ie. something like CMA.. http://lwn.net/Articles/416303/ ..
+	 * Nicolas Pitre had some idea that highmem could make this easier
+	 * because highmem pages could be more easily relocated to make
+	 * contiguous memory available.. see
+	 * http://lists.linaro.org/pipermail/linaro-dev/2011-February/002854.html
+	 */
 
 	/* Get the framebuffer physical address base */
 	unsigned long fb_base_phyaddr =
 		psDevInfo->sSystemBuffer.sSysAddr.uiAddr;
 
 	/* Calculate the virtual Y to move in the framebuffer */
-	framebuffer->var.yoffset =
-		(aPhyAddr - fb_base_phyaddr) / framebuffer->fix.line_length;
-	framebuffer->var.activate = FB_ACTIVATE_FORCE;
-	fb_set_var(framebuffer, &framebuffer->var);
+	var.yoffset = (aPhyAddr - fb_base_phyaddr) / framebuffer->fix.line_length;
+	var.activate = FB_ACTIVATE_FORCE;
+
+	/* hack.. normally virtual height would be same as actual height of the
+	 * virtual framebuffer (ie. the bounding box around all sub-rects of
+	 * the fb that are being scanned out to some display.. but that would
+	 * cause fb_pan_display to fail.. this hack can go away once we start
+	 * using crtc->funcs->page_flip()
+	 */
+	framebuffer->var.yres_virtual = var.yoffset + var.yres;
+
+	fb_pan_display(framebuffer, &var);
+}
+
+void OMAPLFBFlip(OMAPLFB_SWAPCHAIN *psSwapChain, unsigned long aPhyAddr)
+{
+	OMAPLFBFlipNoLock(psSwapChain, aPhyAddr);
 }
 
 #elif defined(FLIP_TECHNIQUE_OVERLAY)
@@ -236,11 +257,6 @@ static void OMAPLFBFlipNoLock(OMAPLFB_SWAPCHAIN *psSwapChain,
 	}
 }
 
-#else
-#error No flipping technique selected, please define \
-	FLIP_TECHNIQUE_FRAMEBUFFER or FLIP_TECHNIQUE_OVERLAY
-#endif
-
 void OMAPLFBFlip(OMAPLFB_SWAPCHAIN *psSwapChain, unsigned long aPhyAddr)
 {
 	OMAPLFB_DEVINFO *psDevInfo = (OMAPLFB_DEVINFO *)psSwapChain->pvDevInfo;
@@ -252,6 +268,11 @@ void OMAPLFBFlip(OMAPLFB_SWAPCHAIN *psSwapChain, unsigned long aPhyAddr)
 	OMAPLFBFlipNoLock(psSwapChain, aPhyAddr);
 	omapfb_unlock(fbdev);
 }
+
+#else
+#error No flipping technique selected, please define \
+	FLIP_TECHNIQUE_FRAMEBUFFER or FLIP_TECHNIQUE_OVERLAY
+#endif
 
 void OMAPLFBPresentSync(OMAPLFB_DEVINFO *psDevInfo, OMAPLFB_FLIP_ITEM *psFlipItem)
 {
@@ -268,44 +289,25 @@ void OMAPLFBPresentSyncAddr(OMAPLFB_DEVINFO *psDevInfo,
 	unsigned long paddr)
 {
 	struct fb_info *framebuffer = psDevInfo->psLINFBInfo;
-	struct omapfb_info *ofbi = FB2OFB(framebuffer);
-	struct omap_dss_device *display;
-	struct omapfb2_device *fbdev = ofbi->fbdev;
-	struct omap_dss_driver *driver;
-	struct omap_overlay_manager *manager;
-	int err = 1;
+	struct drm_connector *connector = NULL;
+	int err = 0;
 
-	omapfb_lock(fbdev);
-
-	display = fb2display(framebuffer);
-	/* The framebuffer doesn't have a display attached, just bail out */
-	if (!display) {
-		omapfb_unlock(fbdev);
-		return;
+	while ((connector = omap_fbdev_get_next_connector(framebuffer, connector)))
+	{
+		err |= omap_connector_sync(connector);
 	}
 
-	driver = display->driver;
-	manager = display->manager;
+	OMAPLFBFlipNoLock(psDevInfo->psSwapChain, paddr);
 
-	if (driver && driver->sync &&
-		driver->get_update_mode(display) == OMAP_DSS_UPDATE_MANUAL) {
-		/* Wait first for the DSI bus to be released then update */
-		err = driver->sync(display);
-		OMAPLFBFlipNoLock(psDevInfo->psSwapChain, paddr);
-	} else if (manager && manager->wait_for_vsync) {
-		/*
-		 * Update the video pipelines registers then wait until the
-		 * frame is shown with a VSYNC
-		 */
-		OMAPLFBFlipNoLock(psDevInfo->psSwapChain, paddr);
-		err = manager->wait_for_vsync(manager);
+	connector = NULL;
+	while ((connector = omap_fbdev_get_next_connector(framebuffer, connector)))
+	{
+		if (err && connector->encoder)
+		{
+			/* if the panel didn't support sync(), then try wait_for_vsync() */
+			err = omap_encoder_wait_for_vsync(connector->encoder);
+		}
 	}
-
-	if (err)
-		WARNING_PRINTK("Unable to sync with display %u!",
-			psDevInfo->uDeviceID);
-
-	omapfb_unlock(fbdev);
 }
 
 #if defined(LDM_PLATFORM)

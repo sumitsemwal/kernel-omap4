@@ -41,6 +41,10 @@
 #include <drm/drmP.h>
 #include <drm/drm.h>
 
+#if defined(SUPPORT_DRI_DRM_EXTERNAL)
+#  include <linux/omap_gpu.h>
+#endif
+
 #include "img_defs.h"
 #include "services.h"
 #include "kerneldisplay.h"
@@ -84,6 +88,7 @@ struct drm_device *gpsPVRDRMDev;
 
 #define PVR_DRM_FILE struct drm_file *
 
+#if !defined(SUPPORT_DRI_DRM_EXTERNAL)
 static int
 PVRSRVDrmProbe(struct platform_device *pDevice)
 {
@@ -109,6 +114,7 @@ PVRSRVDrmRemove(struct platform_device *pDevice)
 
 	return PVRSRVDriverRemove(pDevice);
 }
+#endif
 
 DRI_DRM_STATIC int
 PVRSRVDrmLoad(struct drm_device *dev, unsigned long flags)
@@ -211,6 +217,21 @@ PVRSRVDrmPostClose(struct drm_device *dev, struct drm_file *file)
 
 	file->driver_priv = NULL;
 }
+#elif defined(SUPPORT_DRI_DRM_EXTERNAL)
+DRI_DRM_STATIC int
+PVRSRVDrmRelease(struct drm_device *dev, struct drm_file *file)
+{
+	void *psDriverPriv = file->driver_priv;
+
+	PVR_TRACE(("PVRSRVDrmRelease: psDriverPriv=%p", psDriverPriv));
+
+	if (psDriverPriv)
+	{
+		PVRSRVRelease(psDriverPriv);
+	}
+
+	return 0;
+}
 #else
 DRI_DRM_STATIC int
 PVRSRVDrmRelease(struct inode *inode, struct file *filp)
@@ -219,10 +240,9 @@ PVRSRVDrmRelease(struct inode *inode, struct file *filp)
 	void *psDriverPriv = file_priv->driver_priv;
 	int ret;
 
-	PVR_TRACE(("PVRSRVDrmRelease"));
+	PVR_TRACE(("PVRSRVDrmRelease: psDriverPriv=%p", psDriverPriv));
 
 	ret = drm_release(inode, filp);
-
 	if (ret != 0)
 	{
 		
@@ -230,9 +250,12 @@ PVRSRVDrmRelease(struct inode *inode, struct file *filp)
 			__FUNCTION__, ret));
 	}
 
-	PVRSRVRelease(psDriverPriv);
+	if (psDriverPriv)
+	{
+		PVRSRVRelease(psDriverPriv);
+	}
 
-	return 0;
+	return ret;
 }
 #endif
 
@@ -323,6 +346,22 @@ struct drm_ioctl_desc sPVRDrmIoctls[] = {
 
 static int pvr_max_ioctl = DRM_ARRAY_SIZE(sPVRDrmIoctls);
 
+#if defined(SUPPORT_DRI_DRM_EXTERNAL)
+static struct omap_gpu_plugin plugin = {
+               .name = PVR_DRM_NAME,
+
+               .open = PVRSRVDrmOpen,
+               .load = PVRSRVDrmLoad,
+               .unload = PVRSRVDrmUnload,
+
+               .release = PVRSRVDrmRelease,
+               .mmap = PVRMMap,
+
+               .ioctls = sPVRDrmIoctls,
+               .num_ioctls = ARRAY_SIZE(sPVRDrmIoctls),
+               .ioctl_start = 0,
+};
+#else
 static struct drm_driver sPVRDrmDriver = 
 {
 	.driver_features = DRIVER_USE_PLATFORM_DEVICE,
@@ -362,6 +401,7 @@ static struct drm_driver sPVRDrmDriver =
 	.minor = PVRVERSION_MIN,
 	.patchlevel = PVRVERSION_BUILD,
 };
+#endif
 
 static int __init PVRSRVDrmInit(void)
 {
@@ -374,14 +414,24 @@ static int __init PVRSRVDrmInit(void)
 		return iRes;
 	}
 
-	return drm_init(&sPVRDrmDriver);
+#if defined(SUPPORT_DRI_DRM_EXTERNAL)
+	iRes = omap_gpu_register_plugin(&plugin);
+#else
+	iRes = drm_init(&sPVRDrmDriver);
+#endif
+
+	return iRes;
 }
 	
 static void __exit PVRSRVDrmExit(void)
 {
 	PVR_TRACE(("PVRSRVDrmExit"));
 
+#if defined(SUPPORT_DRI_DRM_EXTERNAL)
+	omap_gpu_unregister_plugin(&plugin);
+#else
 	drm_exit(&sPVRDrmDriver);
+#endif
 
 	PVRCore_Cleanup();
 }

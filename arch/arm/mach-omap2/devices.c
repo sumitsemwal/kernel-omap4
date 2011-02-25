@@ -1017,7 +1017,7 @@ static void omap_init_gpu(void)
 	char oh_name[max_omap_gpu_hwmod_name_len];
 	int l;
 	struct gpu_platform_data *pdata;
-	char *name = "pvrsrvkm";
+	char *name = "pvrsrvkm_pvr";
 
 	l = snprintf(oh_name, max_omap_gpu_hwmod_name_len,
 		     "gpu");
@@ -1059,7 +1059,7 @@ static void omap_init_gpu(void)
 	 */
 	{
 		static struct platform_device pdev = {
-				.name = "omap_gpu",
+				.name = "pvrsrvkm",
 				.id = -1,
 		};
 

@@ -37,14 +37,6 @@
 #include <mach/display.h>
 #endif
 
-#ifdef RELEASE
-#include <../drivers/video/omap2/omapfb/omapfb.h>
-#undef DEBUG
-#else
-#undef DEBUG
-#include <../drivers/video/omap2/omapfb/omapfb.h>
-#endif
-
 #if defined(SUPPORT_DRI_DRM)
 #include <drm/drmP.h>
 #else
@@ -80,6 +72,8 @@ static PFN_DC_GET_PVRJTABLE pfnGetPVRJTable = NULL;
 static OMAPLFB_DEVINFO *pDisplayDevices = NULL;
 
 static void OMAPLFBSyncIHandler(struct work_struct*);
+
+static OMAP_ERROR ReInitDev(OMAPLFB_DEVINFO *psDevInfo);
 
 /*
  * Swap to display buffer. This buffer refers to one inside the
@@ -509,6 +503,8 @@ static PVRSRV_ERROR OpenDCDevice(IMG_UINT32 ui32DeviceID,
 			(int)ui32DeviceID);
 		return 1;
 	}
+
+	ReInitDev(psDevInfo);
 
 	psDevInfo->sSystemBuffer.psSyncData = psSystemBufferSyncData;
 	if ( UnBlankDisplay(psDevInfo) != OMAP_OK)
@@ -1371,6 +1367,15 @@ int PVR_DRM_MAKENAME(DISPLAY_CONTROLLER, _Ioctl)(struct drm_device unref__ *dev,
 			UnBlankDisplay(psDevInfo);
 			break;
 		}
+		case PVR_DRM_DISP_CMD_RESYNC:
+			if (ReInitDev(psDevInfo) != OMAP_OK)
+			{
+				printk(KERN_WARNING DRIVER_PREFIX ": %s: ReInitDev failed\n", __FUNCTION__);
+				ret = -EINVAL;
+				break;
+			}
+
+			break;
 		case PVR_DRM_DISP_CMD_ON:
 		case PVR_DRM_DISP_CMD_STANDBY:
 		case PVR_DRM_DISP_CMD_SUSPEND:
@@ -1517,43 +1522,22 @@ OMAP_ERROR OMAPLFBDeinit(void)
  * Extracts the framebuffer data from the kernel driver
  * in: psDevInfo
  */
-static OMAP_ERROR InitDev(OMAPLFB_DEVINFO *psDevInfo, int fb_idx)
+static OMAP_ERROR InitDev(OMAPLFB_DEVINFO *psDevInfo)
 {
-	struct fb_info *psLINFBInfo;
+	struct fb_info *psLINFBInfo = psDevInfo->psLINFBInfo;
 	struct module *psLINFBOwner;
 	OMAPLFB_FBINFO *psPVRFBInfo = &psDevInfo->sFBInfo;
 	unsigned long FBSize;
 	int buffers_available;
 
-	/* Check if the framebuffer index to use is valid */
-	if (fb_idx < 0 || fb_idx >= num_registered_fb)
-	{
-		ERROR_PRINTK("Framebuffer index %i out of range, "
-			"only %i available", fb_idx, num_registered_fb);
-		return OMAP_ERROR_INVALID_DEVICE;
-	}
-
-	/* Get the framebuffer from the kernel */
-	if (!registered_fb[fb_idx])
-	{
-		ERROR_PRINTK("Framebuffer index %i is null", fb_idx);
-		return OMAP_ERROR_INVALID_DEVICE;
-	}
-
-	psLINFBInfo = registered_fb[fb_idx];
-
 	/* Check the framebuffer width and height are valid */
 	if(psLINFBInfo->var.xres <= 0 || psLINFBInfo->var.yres <= 0)
 	{
-		ERROR_PRINTK("Framebuffer %i has an invalid state, "
-			"width and height are %u,%u", fb_idx,
+		ERROR_PRINTK("Framebuffer %p has an invalid state, "
+			"width and height are %u,%u", psLINFBInfo,
 			psLINFBInfo->var.xres, psLINFBInfo->var.yres);
 		return OMAP_ERROR_INVALID_DEVICE;
 	}
-
-	/* Configure framebuffer for flipping and desired bpp */
-	psLINFBInfo->var.yres_virtual = psLINFBInfo->var.yres *
-		MAX_BUFFERS_FLIPPING;
 
 	if(DESIRED_BPP != 0){
 		psLINFBInfo->var.bits_per_pixel = DESIRED_BPP;
@@ -1585,21 +1569,6 @@ static OMAP_ERROR InitDev(OMAPLFB_DEVINFO *psDevInfo, int fb_idx)
 	acquire_console_sem();
 	psLINFBInfo->var.activate = FB_ACTIVATE_FORCE;
 	fb_set_var(psLINFBInfo, &psLINFBInfo->var);
-	buffers_available =
-		psLINFBInfo->var.yres_virtual / psLINFBInfo->var.yres;
-
-	if(buffers_available <= 1)
-	{
-		/*
-		 * Flipping is not supported, return the framebuffer to
-		 * its original state
-		 */
-		psLINFBInfo->var.yres_virtual = psLINFBInfo->var.yres;
-		psLINFBInfo->var.activate = FB_ACTIVATE_FORCE;
-		fb_set_var(psLINFBInfo, &psLINFBInfo->var);
-		buffers_available = 1;
-	}
-	psDevInfo->sDisplayInfo.ui32MaxSwapChainBuffers = buffers_available;
 
 	psLINFBOwner = psLINFBInfo->fbops->owner;
 	if (!try_module_get(psLINFBOwner))
@@ -1613,8 +1582,7 @@ static OMAP_ERROR InitDev(OMAPLFB_DEVINFO *psDevInfo, int fb_idx)
 	{
 		if (psLINFBInfo->fbops->fb_open(psLINFBInfo, 0))
 		{
-			ERROR_PRINTK("Couldn't open framebuffer with"
-				" index %d", fb_idx);
+			ERROR_PRINTK("Couldn't open framebuffer %p", psLINFBInfo);
 			module_put(psLINFBOwner);
 			release_console_sem();
 			return OMAP_ERROR_GENERIC;
@@ -1625,7 +1593,7 @@ static OMAP_ERROR InitDev(OMAPLFB_DEVINFO *psDevInfo, int fb_idx)
 	/* Extract the needed data from the framebuffer structures */
 	FBSize = (psLINFBInfo->screen_size) != 0 ?
 		psLINFBInfo->screen_size : psLINFBInfo->fix.smem_len;
-	DEBUG_PRINTK("Framebuffer index %d information:", fb_idx);
+	DEBUG_PRINTK("Framebuffer %p information:", psLINFBInfo);
 	DEBUG_PRINTK("*Physical address: 0x%lx",
 		psLINFBInfo->fix.smem_start);
 	DEBUG_PRINTK("*Virtual address: 0x%lx",
@@ -1664,6 +1632,24 @@ static OMAP_ERROR InitDev(OMAPLFB_DEVINFO *psDevInfo, int fb_idx)
 	 */
 	psPVRFBInfo->ulRoundedBufferSize =
 			OMAPLFB_PAGE_ROUNDUP(psPVRFBInfo->ulBufferSize);
+
+	/* note: calculate by fb size, not yres_virtual, as drm will set
+	 * yres_virtual back to yres
+	 */
+	buffers_available =
+			psLINFBInfo->fix.smem_len / psPVRFBInfo->ulRoundedBufferSize;
+
+	if(buffers_available <= 1)
+	{
+		/*
+		 * Flipping is not supported, return the framebuffer to
+		 * its original state
+		 */
+		psLINFBInfo->var.activate = FB_ACTIVATE_FORCE;
+		fb_set_var(psLINFBInfo, &psLINFBInfo->var);
+		buffers_available = 1;
+	}
+	psDevInfo->sDisplayInfo.ui32MaxSwapChainBuffers = buffers_available;
 
 	psDevInfo->sFBInfo.sSysAddr.uiAddr = psPVRFBInfo->sSysAddr.uiAddr;
 	psDevInfo->sFBInfo.sCPUVAddr = psPVRFBInfo->sCPUVAddr;
@@ -1711,6 +1697,39 @@ static OMAP_ERROR InitDev(OMAPLFB_DEVINFO *psDevInfo, int fb_idx)
 	release_console_sem();
 	return OMAP_OK;
 }
+
+/*
+ * Reinitialize our state after screen dimension change
+ */
+
+static OMAP_ERROR ReInitDev(OMAPLFB_DEVINFO *psDevInfo)
+{
+	OMAP_ERROR err = InitDev(psDevInfo);
+	if (err) {
+		return err;
+	}
+
+	psDevInfo->sDisplayFormat.pixelformat =
+			psDevInfo->sFBInfo.ePixelFormat;
+	psDevInfo->sDisplayDim.ui32Width =
+			(IMG_UINT32)psDevInfo->sFBInfo.ulWidth;
+	psDevInfo->sDisplayDim.ui32Height =
+			(IMG_UINT32)psDevInfo->sFBInfo.ulHeight;
+	psDevInfo->sDisplayDim.ui32ByteStride =
+			(IMG_UINT32)psDevInfo->sFBInfo.ulByteStride;
+	psDevInfo->sSystemBuffer.sSysAddr =
+			psDevInfo->sFBInfo.sSysAddr;
+	psDevInfo->sSystemBuffer.sCPUVAddr =
+			psDevInfo->sFBInfo.sCPUVAddr;
+	psDevInfo->sSystemBuffer.ulBufferSize =
+			psDevInfo->sFBInfo.ulRoundedBufferSize;
+	DEBUG_PRINTK("Buffers available: %u (%lu bytes per buffer)",
+			psDevInfo->sDisplayInfo.ui32MaxSwapChainBuffers,
+			psDevInfo->sFBInfo.ulBufferSize);
+
+	return OMAP_OK;
+}
+
 
 /*
  *  Initialization routine for the 3rd party display driver
@@ -1765,14 +1784,32 @@ OMAP_ERROR OMAPLFBInit(void)
 	/*
 	 * Initialize each display device
 	 */
-	for (i = FRAMEBUFFER_COUNT - 1; i >= 0; i--)
+	for (i = 0; i < FRAMEBUFFER_COUNT; i++)
 	{
 		DEBUG_PRINTK("-> Initializing display device %i", i);
+
+		/* Check if the framebuffer index to use is valid */
+		if (i < 0 || i >= num_registered_fb)
+		{
+			ERROR_PRINTK("Framebuffer index %i out of range, "
+				"only %i available", i, num_registered_fb);
+			return OMAP_ERROR_INVALID_DEVICE;
+		}
+
+		/* Get the framebuffer from the kernel */
+		if (!registered_fb[i])
+		{
+			ERROR_PRINTK("Framebuffer index %i is null", i);
+			return OMAP_ERROR_INVALID_DEVICE;
+		}
+
+		pDisplayDevices[i].psLINFBInfo = registered_fb[i];
+
 		/*
 		 * Here we get the framebuffer data for each display device
 		 * and check for error
 		 */
-		if(InitDev(&pDisplayDevices[i], i) != OMAP_OK)
+		if(InitDev(&pDisplayDevices[i]) != OMAP_OK)
 		{
 			ERROR_PRINTK("Unable to initialize display "
 				"device %i",i);

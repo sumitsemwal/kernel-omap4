@@ -88,16 +88,19 @@
 #if defined(SUPPORT_DRI_DRM)
 #include "pvr_drm.h"
 #endif
+#if defined(SUPPORT_DRI_DRM_EXTERNAL)
+#define DRVNAME                PVRSRV_MODNAME
+#else
 #define DRVNAME		PVRSRV_MODNAME
 #define DEVNAME		PVRSRV_MODNAME
+MODULE_SUPPORTED_DEVICE(DEVNAME);
+#endif
 
 #if defined(SUPPORT_DRI_DRM)
 #define PRIVATE_DATA(pFile) ((pFile)->driver_priv)
 #else
 #define PRIVATE_DATA(pFile) ((pFile)->private_data)
 #endif
-
-MODULE_SUPPORTED_DEVICE(DEVNAME);
 
 #if defined(PVRSRV_NEED_PVR_DPF)
 #include <linux/moduleparam.h>
@@ -151,7 +154,7 @@ static IMG_UINT32 gPVRPowerLevel;
 #endif 
 
 #if defined(PVR_LDM_PLATFORM_MODULE)
-#if defined(SUPPORT_DRI_DRM)
+#if defined(SUPPORT_DRI_DRM) && !defined(SUPPORT_DRI_DRM_EXTERNAL)
 int PVRSRVDriverProbe(LDM_DEV *device);
 int PVRSRVDriverRemove(LDM_DEV *device);
 int PVRSRVDriverSuspend(LDM_DEV *device, pm_message_t state);
@@ -185,7 +188,7 @@ struct pci_device_id powervr_id_table[] __devinitdata = {
 MODULE_DEVICE_TABLE(pci, powervr_id_table);
 #endif
 
-#if !defined(SUPPORT_DRI_DRM)
+#if defined(SUPPORT_DRI_DRM_EXTERNAL) || !defined(SUPPORT_DRI_DRM)
 static LDM_DRV powervr_driver = {
 #if defined(PVR_LDM_PLATFORM_MODULE)
 	.driver = {
@@ -228,7 +231,7 @@ static struct platform_device powervr_device = {
 #endif 
 
 #if defined(PVR_LDM_PLATFORM_MODULE)
-#if defined(SUPPORT_DRI_DRM)
+#if defined(SUPPORT_DRI_DRM) && !defined(SUPPORT_DRI_DRM_EXTERNAL)
 int PVRSRVDriverProbe(LDM_DEV *pDevice)
 #else
 static int PVRSRVDriverProbe(LDM_DEV *pDevice)
@@ -266,7 +269,7 @@ static int __devinit PVRSRVDriverProbe(LDM_DEV *pDevice, const struct pci_device
 
 
 #if defined (PVR_LDM_PLATFORM_MODULE)
-#if defined(SUPPORT_DRI_DRM)
+#if defined(SUPPORT_DRI_DRM) && !defined(SUPPORT_DRI_DRM_EXTERNAL)
 int PVRSRVDriverRemove(LDM_DEV *pDevice)
 #else
 static int PVRSRVDriverRemove(LDM_DEV *pDevice)
@@ -310,7 +313,7 @@ static void __devexit PVRSRVDriverRemove(LDM_DEV *pDevice)
 #endif
 }
 
-#if defined(SUPPORT_DRI_DRM)
+#if defined(SUPPORT_DRI_DRM) && !defined(SUPPORT_DRI_DRM_EXTERNAL)
 IMG_VOID PVRSRVDriverShutdown(LDM_DEV *pDevice)
 #else
 static IMG_VOID PVRSRVDriverShutdown(LDM_DEV *pDevice)
@@ -325,7 +328,7 @@ static IMG_VOID PVRSRVDriverShutdown(LDM_DEV *pDevice)
 
 
 #if defined(PVR_LDM_MODULE)
-#if defined(SUPPORT_DRI_DRM)
+#if defined(SUPPORT_DRI_DRM) && !defined(SUPPORT_DRI_DRM_EXTERNAL)
 int PVRSRVDriverSuspend(LDM_DEV *pDevice, pm_message_t state)
 #else
 static int PVRSRVDriverSuspend(LDM_DEV *pDevice, pm_message_t state)
@@ -343,7 +346,7 @@ static int PVRSRVDriverSuspend(LDM_DEV *pDevice, pm_message_t state)
 }
 
 
-#if defined(SUPPORT_DRI_DRM)
+#if defined(SUPPORT_DRI_DRM) && !defined(SUPPORT_DRI_DRM_EXTERNAL)
 int PVRSRVDriverResume(LDM_DEV *pDevice)
 #else
 static int PVRSRVDriverResume(LDM_DEV *pDevice)
@@ -556,7 +559,7 @@ static int __init PVRCore_Init(IMG_VOID)
 
 	PVRMMapInit();
 
-#if !defined(SUPPORT_DRI_DRM)
+#if defined(SUPPORT_DRI_DRM_EXTERNAL) || !defined(SUPPORT_DRI_DRM)
 
 #if defined(PVR_LDM_MODULE)
 
@@ -605,6 +608,7 @@ static int __init PVRCore_Init(IMG_VOID)
 	}
 #endif 
 
+#if !defined(SUPPORT_DRI_DRM)
 	AssignedMajorNumber = register_chrdev(0, DEVNAME, &pvrsrv_fops);
 
 	if (AssignedMajorNumber <= 0)
@@ -640,6 +644,7 @@ static int __init PVRCore_Init(IMG_VOID)
 		goto destroy_class;
 	}
 #endif 
+#endif
 
 #endif
 	return 0;
