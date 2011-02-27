@@ -1016,7 +1016,7 @@ static int configure_dispc(void)
 	}
 	if (cpu_is_omap44xx()) {
 		/* Enable WB plane and source plane */
-		DSSDBG("configure manager wb->shadow_dirty = %d", wb->shadow_dirty);
+		DSSDBG("configure manager wb->shadow_dirty = %d\n", wb->shadow_dirty);
 		if (wb->shadow_dirty && wb->enabled) {
 			switch (wb->source) {
 			case OMAP_WB_OVERLAY0:
