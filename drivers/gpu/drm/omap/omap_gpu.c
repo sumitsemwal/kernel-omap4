@@ -22,7 +22,9 @@
 
 #include "drm_fb_helper.h"
 
-#define DRIVER_NAME		MODULE_NAME
+//#define DRIVER_NAME		MODULE_NAME
+// temporary hack for android:
+#define DRIVER_NAME     "pvrsrvkm"
 #define DRIVER_DESC		"OMAP GPU"
 #define DRIVER_DATE		"20110201"
 #define DRIVER_MAJOR		1
