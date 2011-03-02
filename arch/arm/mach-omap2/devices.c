@@ -17,6 +17,7 @@
 #include <linux/clk.h>
 #include <linux/err.h>
 #include <linux/slab.h>
+#include <linux/omap_gpu.h>
 
 #include <mach/hardware.h>
 #include <mach/irqs.h>
@@ -1058,9 +1059,48 @@ static void omap_init_gpu(void)
 	 * (currently), so for now just create a plain device:
 	 */
 	{
+		static const int ovl_ids[] = {0};
+		static const int mgr_ids[] = {0};
+		static const char *dev_names[] = {"lcd"};
+		static const struct omap_gpu_platform_data pdata = {
+				.ovl_cnt = ARRAY_SIZE(ovl_ids),
+				.ovl_ids = ovl_ids,
+				.mgr_cnt = ARRAY_SIZE(mgr_ids),
+				.mgr_ids = mgr_ids,
+				.dev_cnt = ARRAY_SIZE(dev_names),
+				.dev_names = dev_names,
+		};
 		static struct platform_device pdev = {
 				.name = "pvrsrvkm",
-				.id = -1,
+				.id = 0,
+				.dev = {
+						.platform_data = (void *)&pdata,
+				},
+		};
+
+		platform_device_register(&pdev);
+	}
+
+	/* this second device instance is a bit special..
+	 */
+	{
+		static const int ovl_ids[] = {1};
+		static const int mgr_ids[] = {1};
+		static const char *dev_names[] = {"hdmi"};
+		static const struct omap_gpu_platform_data pdata = {
+				.ovl_cnt = ARRAY_SIZE(ovl_ids),
+				.ovl_ids = ovl_ids,
+				.mgr_cnt = ARRAY_SIZE(mgr_ids),
+				.mgr_ids = mgr_ids,
+				.dev_cnt = ARRAY_SIZE(dev_names),
+				.dev_names = dev_names,
+		};
+		static struct platform_device pdev = {
+				.name = "pvrsrvkm",
+				.id = 1,
+				.dev = {
+						.platform_data = (void *)&pdata,
+				},
 		};
 
 		platform_device_register(&pdev);
