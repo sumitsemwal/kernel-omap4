@@ -133,17 +133,20 @@ static int drm_set_busid(struct drm_device *dev, struct drm_file *file_priv)
 	int len;
 
 	if (drm_core_check_feature(dev, DRIVER_USE_PLATFORM_DEVICE)) {
-		master->unique_len = 10 + strlen(dev->platformdev->name);
+		master->unique_len = 13 + strlen(dev->platformdev->name);
+		master->unique_size = master->unique_len;
 		master->unique = kmalloc(master->unique_len + 1, GFP_KERNEL);
 
 		if (master->unique == NULL)
 			return -ENOMEM;
 
 		len = snprintf(master->unique, master->unique_len,
-			"platform:%s", dev->platformdev->name);
+			"platform:%s:%02d", dev->platformdev->name, dev->primary->index);
 
 		if (len > master->unique_len)
 			DRM_ERROR("Unique buffer overflowed\n");
+		else
+			master->unique_len = len;
 
 		dev->devname =
 			kmalloc(strlen(dev->platformdev->name) +
