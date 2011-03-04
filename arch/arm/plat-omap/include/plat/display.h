@@ -865,6 +865,10 @@ struct omap_writeback *omap_dss_get_wb(int num);
 
 void omapdss_default_get_resolution(struct omap_dss_device *dssdev,
 			u16 *xres, u16 *yres);
+void omapdss_default_get_timings(struct omap_dss_device *dssdev,
+			struct omap_video_timings *timings);
+int omapdss_default_check_timings(struct omap_dss_device *dssdev,
+			struct omap_video_timings *timings);
 int omapdss_default_get_recommended_bpp(struct omap_dss_device *dssdev);
 bool dispc_go_busy(enum omap_channel channel);
 void dispc_go(enum omap_channel channel);
