@@ -1415,7 +1415,8 @@ static enum OMAP_ERROR create_display_devices(void)
 		/* Register the display device */
 		if(psDevInfo->sPVRJTable.pfnPVRSRVRegisterDCDevice(
 			&psDevInfo->sDCJTable,
-			(IMG_UINT32*) &psDevInfo->ulDeviceID) != PVRSRV_OK)
+			(IMG_UINT32*) &psDevInfo->ulDeviceID,
+			NULL) != PVRSRV_OK)
 		{
 			ERROR_PRINTK("Unable to register the jump table"
 				" services->display");

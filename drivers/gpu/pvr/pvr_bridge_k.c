@@ -182,7 +182,7 @@ static void ProcSeqShowBridgeStats(struct seq_file *sfile,void* el)
 
 #if defined(SUPPORT_DRI_DRM)
 int
-PVRSRV_BridgeDispatchKM(struct drm_device unref__ *dev, void *arg, struct drm_file *pFile)
+PVRSRV_BridgeDispatchKM(struct drm_device *dev, void *arg, struct drm_file *pFile)
 #else
 long
 PVRSRV_BridgeDispatchKM(struct file *pFile, unsigned int unref__ ioctlCmd, unsigned long arg)
@@ -192,6 +192,10 @@ PVRSRV_BridgeDispatchKM(struct file *pFile, unsigned int unref__ ioctlCmd, unsig
 #if !defined(SUPPORT_DRI_DRM)
 	PVRSRV_BRIDGE_PACKAGE *psBridgePackageUM = (PVRSRV_BRIDGE_PACKAGE *)arg;
 	PVRSRV_BRIDGE_PACKAGE sBridgePackageKM;
+	IMG_VOID *handle = NULL;
+#else
+	IMG_VOID * omap_gpu_get_fbdev(struct drm_device *dev);
+	IMG_VOID *handle = omap_gpu_get_fbdev(dev); // XXX handle should come from omaplfb somehow, because it is omaplfb that decided to use the fb_info* as the unique handle..
 #endif
 	PVRSRV_BRIDGE_PACKAGE *psBridgePackageKM;
 	IMG_UINT32 ui32PID = OSGetCurrentProcessIDKM();
@@ -365,7 +369,7 @@ PVRSRV_BridgeDispatchKM(struct file *pFile, unsigned int unref__ ioctlCmd, unsig
 	}
 #endif 
 
-	err = BridgedDispatchKM(psPerProc, psBridgePackageKM);
+	err = BridgedDispatchKM(psPerProc, psBridgePackageKM, handle);
 	if(err != PVRSRV_OK)
 		goto unlock_and_return;
 

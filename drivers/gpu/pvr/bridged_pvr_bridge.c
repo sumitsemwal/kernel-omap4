@@ -2296,7 +2296,8 @@ static IMG_INT
 PVRSRVEnumerateDCBW(IMG_UINT32 ui32BridgeID,
                     PVRSRV_BRIDGE_IN_ENUMCLASS *psEnumDispClassIN,
                     PVRSRV_BRIDGE_OUT_ENUMCLASS *psEnumDispClassOUT,
-                    PVRSRV_PER_PROCESS_DATA *psPerProc)
+                    PVRSRV_PER_PROCESS_DATA *psPerProc,
+                    IMG_VOID *handle)
 {
     PVR_UNREFERENCED_PARAMETER(psPerProc);
 
@@ -2305,7 +2306,8 @@ PVRSRVEnumerateDCBW(IMG_UINT32 ui32BridgeID,
     psEnumDispClassOUT->eError =
         PVRSRVEnumerateDCKM(psEnumDispClassIN->sDeviceClass,
                             &psEnumDispClassOUT->ui32NumDevices,
-                            &psEnumDispClassOUT->ui32DevID[0]);
+                            &psEnumDispClassOUT->ui32DevID[0],
+                            handle);
 
     return 0;
 }
@@ -4505,7 +4507,7 @@ CommonBridgeInit(IMG_VOID)
     SetDispatchTableEntry(PVRSRV_BRIDGE_GET_OEMJTABLE, DummyBW);
 
     
-    SetDispatchTableEntry(PVRSRV_BRIDGE_ENUM_CLASS, PVRSRVEnumerateDCBW);
+    SetDispatchTableEntry(PVRSRV_BRIDGE_ENUM_CLASS, (BridgeWrapperFunction)PVRSRVEnumerateDCBW);
 
     
     SetDispatchTableEntry(PVRSRV_BRIDGE_OPEN_DISPCLASS_DEVICE, PVRSRVOpenDCDeviceBW);
@@ -4594,7 +4596,8 @@ CommonBridgeInit(IMG_VOID)
 }
 
 IMG_INT BridgedDispatchKM(PVRSRV_PER_PROCESS_DATA * psPerProc,
-                      PVRSRV_BRIDGE_PACKAGE   * psBridgePackageKM)
+                      PVRSRV_BRIDGE_PACKAGE   * psBridgePackageKM,
+                      IMG_VOID *handle)
 {
 
     IMG_VOID   * psBridgeIn;
@@ -4704,10 +4707,21 @@ IMG_INT BridgedDispatchKM(PVRSRV_PER_PROCESS_DATA * psPerProc,
     }
     pfBridgeHandler =
         (BridgeWrapperFunction)g_BridgeDispatchTable[ui32BridgeID].pfFunction;
+    if (ui32BridgeID == PVRSRV_GET_BRIDGE_ID(PVRSRV_BRIDGE_ENUM_CLASS))
+    {
+        err = ((BridgeWrapperFunction2)pfBridgeHandler)(ui32BridgeID,
+                          psBridgeIn,
+                          psBridgeOut,
+                          psPerProc,
+                          handle);
+    }
+    else
+    {
     err = pfBridgeHandler(ui32BridgeID,
                           psBridgeIn,
                           psBridgeOut,
                           psPerProc);
+    }
     if(err < 0)
     {
         goto return_fault;
