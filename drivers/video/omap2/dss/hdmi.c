@@ -1394,6 +1394,8 @@ static void hdmi_work_queue(struct work_struct *ws)
 		HDMI_W1_SetWaitPllPwrState(HDMI_WP, HDMI_PLLPWRCMD_ALLOFF);
 		edid_set = custom_set = false;
 		set_video_power(dssdev, HDMI_POWER_MIN);
+
+		omap_dss_notify(dssdev, OMAP_DSS_HOTPLUG_DISCONNECT);
 	}
 
 	/* read connect timestamp */
@@ -1417,6 +1419,7 @@ static void hdmi_work_queue(struct work_struct *ws)
 			if (!user_hpd_state && hdmi_power == HDMI_POWER_FULL)
 				set_hdmi_hot_plug_status(dssdev, true);
 		}
+		omap_dss_notify(dssdev, OMAP_DSS_HOTPLUG_CONNECT);
 	}
 
 	if ((action & HDMI_CONNECT) && (video_power == HDMI_POWER_MIN) &&
