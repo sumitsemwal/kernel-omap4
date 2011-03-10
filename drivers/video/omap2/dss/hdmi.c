@@ -878,6 +878,11 @@ static bool hdmi_panel_is_enabled(struct omap_dss_device *dssdev)
 	return video_power == HDMI_POWER_FULL;
 }
 
+static bool hdmi_panel_is_detected(struct omap_dss_device *dssdev)
+{
+	return hdmi_rxdet();
+}
+
 static int hdmi_panel_enable(struct omap_dss_device *dssdev)
 {
 	hdmi_enable_video(dssdev);
@@ -918,6 +923,7 @@ static struct omap_dss_driver hdmi_driver = {
 	.disable	= hdmi_panel_disable,
 	.smart_enable	= hdmi_panel_enable,
 	.smart_is_enabled	= hdmi_panel_is_enabled,
+	.is_detected	= hdmi_panel_is_detected,
 	.suspend	= hdmi_panel_suspend,
 	.resume		= hdmi_panel_resume,
 	.get_timings	= hdmi_get_timings,
