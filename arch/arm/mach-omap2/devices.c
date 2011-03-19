@@ -932,20 +932,19 @@ void __init omap_display_init(struct omap_dss_board_info *board_data)
 #if defined(CONFIG_VIDEO_OMAP2_VOUT) || \
 	defined(CONFIG_VIDEO_OMAP2_VOUT_MODULE)
 #if defined(CONFIG_FB_OMAP2) || defined(CONFIG_FB_OMAP2_MODULE)
+#  define NUM_FB	CONFIG_FB_OMAP2_NUM_FBS
+#elif defined(CONFIG_DRM_OMAP) || defined(CONFIG_DRM_OMAP_MODULE)
+#  define NUM_FB	CONFIG_DRM_OMAP_NUM_CRTCS
+#else
+#  define NUM_FB	0
+#endif
 #ifdef CONFIG_ARCH_OMAP4
-static struct resource omap_vout_resource[4 - CONFIG_FB_OMAP2_NUM_FBS] = {
+#  define NUM_PIPES	4
 #else
-static struct resource omap_vout_resource[3 - CONFIG_FB_OMAP2_NUM_FBS] = {
+#  define NUM_PIPES	3
 #endif
+static struct resource omap_vout_resource[NUM_PIPES - NUM_FB] = {
 };
-#else
-#ifdef CONFIG_ARCH_OMAP4
-static struct resource omap_vout_resource[3] = {
-#else
-static struct resource omap_vout_resource[2] = {
-#endif
-};
-#endif
 
 #ifdef CONFIG_PM
 struct vout_platform_data omap_vout_data = {
