@@ -148,13 +148,8 @@ static int drm_set_busid(struct drm_device *dev, struct drm_file *file_priv)
 		if (master->unique == NULL)
 			return -ENOMEM;
 
-if (dev->primary->index == 0) {
-	len = snprintf(master->unique, master->unique_len,
-		"platform:%s", dev->platformdev->name);
-} else {
 		len = snprintf(master->unique, master->unique_len,
 			"platform:%s:%02d", dev->platformdev->name, dev->primary->index);
-}
 
 		if (len > master->unique_len)
 			DRM_ERROR("Unique buffer overflowed\n");
