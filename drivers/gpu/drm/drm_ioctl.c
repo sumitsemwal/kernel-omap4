@@ -38,8 +38,6 @@
 
 #include "linux/pci.h"
 
-static int drm_set_busid(struct drm_device *dev, struct drm_file *file_priv);
-
 /**
  * Get the bus id.
  *
@@ -56,12 +54,6 @@ int drm_getunique(struct drm_device *dev, void *data,
 {
 	struct drm_unique *u = data;
 	struct drm_master *master = file_priv->master;
-
-	if (!master->unique) {
-		/* why isn't userspace calling drm_setversion()?? */
-		drm_set_busid(dev, file_priv);
-	}
-	DRM_DEBUG("unique=%s, unique_len=%d\n", master->unique, master->unique_len);
 
 	if (u->unique_len >= master->unique_len) {
 		if (copy_to_user(u->unique, master->unique, master->unique_len))
