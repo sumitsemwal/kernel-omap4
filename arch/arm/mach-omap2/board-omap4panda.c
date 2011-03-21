@@ -27,6 +27,7 @@
 #include <linux/regulator/machine.h>
 #include <linux/spi/spi.h>
 #include <linux/interrupt.h>
+#include <linux/omap_gpu.h>
 
 #include <mach/hardware.h>
 #include <mach/omap4-common.h>
@@ -153,6 +154,37 @@ static struct omap_dss_board_info panda_dss_data = {
 	.devices	=	panda_dss_devices,
 	.default_device	=	&panda_hdmi_device,
 };
+
+/* TODO: add ovl/mgr/dev for dvi.. */
+static const int panda_fb0_ovl_ids[] = {0};
+static const int panda_fb0_mgr_ids[] = {1};
+static const char *panda_fb0_dev_names[] = {"hdmi"};
+
+static const struct omap_gpu_platform_data panda_gpu_data[] = {
+		/* primary framebuffer on hdmi/dvi */
+		{
+				.ovl_cnt = ARRAY_SIZE(panda_fb0_ovl_ids),
+				.ovl_ids = panda_fb0_ovl_ids,
+				.mgr_cnt = ARRAY_SIZE(panda_fb0_mgr_ids),
+				.mgr_ids = panda_fb0_mgr_ids,
+				.dev_cnt = ARRAY_SIZE(panda_fb0_dev_names),
+				.dev_names = panda_fb0_dev_names,
+		},
+};
+
+static void omap_gpu_init(const struct omap_gpu_platform_data *pdata, int n)
+{
+	int i;
+	for (i = 0; i < n; i++) {
+		struct platform_device *pdev = kzalloc(sizeof(*pdev), GFP_KERNEL);
+
+		pdev->name = "pvrsrvkm";
+		pdev->id = i;
+		pdev->dev.platform_data = (void *)&pdata[i];
+
+		platform_device_register(pdev);
+	}
+}
 
 static struct platform_device *panda_devices[] __initdata = {
 	&leds_gpio,
@@ -891,6 +923,7 @@ static void __init omap_panda_init(void)
 #ifdef CONFIG_OMAP2_DSS_HDMI
 	omap_display_init(&panda_dss_data);
 #endif
+	omap_gpu_init(panda_gpu_data, ARRAY_SIZE(panda_gpu_data));
 	enable_board_wakeup_source();
 	omap_voltage_register_pmic(&omap_pmic_core, "core");
 	omap_voltage_register_pmic(&omap_pmic_mpu, "mpu");
