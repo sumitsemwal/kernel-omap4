@@ -281,16 +281,19 @@ void omap_framebuffer_flush(struct drm_framebuffer *fb,
 	DBG("flush: %d,%d %dx%d, fb=%p", x, y, w, h, fb);
 
 	while ((connector = omap_framebuffer_get_next_connector(fb, connector))) {
-		/* TODO: maybe this should propagate thru the crtc who could do
-		 * the coordinate translation..
-		 */
-		struct drm_crtc *crtc = connector->encoder->crtc;
-		int cx = max(0, x - crtc->x);
-		int cy = max(0, y - crtc->y);
-		int cw = w + (x - crtc->x) - cx;
-		int ch = h + (y - crtc->y) - cy;
+		/* only consider connectors that are part of a chain */
+		if (connector->encoder && connector->encoder->crtc) {
+			/* TODO: maybe this should propagate thru the crtc who could do
+			 * the coordinate translation..
+			 */
+			struct drm_crtc *crtc = connector->encoder->crtc;
+			int cx = max(0, x - crtc->x);
+			int cy = max(0, y - crtc->y);
+			int cw = w + (x - crtc->x) - cx;
+			int ch = h + (y - crtc->y) - cy;
 
-		omap_connector_flush(connector, cx, cy, cw, ch);
+			omap_connector_flush(connector, cx, cy, cw, ch);
+		}
 	}
 }
 EXPORT_SYMBOL(omap_framebuffer_flush);
