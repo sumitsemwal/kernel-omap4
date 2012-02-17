@@ -55,7 +55,7 @@ struct vm_area_struct *vb2_get_vma(struct vm_area_struct *vma)
 
 	return vma_copy;
 }
-
+EXPORT_SYMBOL_GPL(vb2_get_vma);
 /**
  * vb2_put_userptr() - release a userspace virtual memory area
  * @vma:	virtual memory region associated with the area to be released
